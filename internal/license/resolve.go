@@ -8,8 +8,8 @@ import (
 	"strings"
 
 	"github.com/google/licenseclassifier"
-	"github.com/uw-labs/lichen/internal/license/db"
-	"github.com/uw-labs/lichen/internal/model"
+	"github.com/vearutop/lichen/internal/license/db"
+	"github.com/vearutop/lichen/internal/model"
 )
 
 // Resolve inspects each module and determines what it is licensed under. The returned slice contains each
@@ -36,6 +36,11 @@ func Resolve(modules []model.Module, threshold float64) ([]model.Module, error) 
 			// be provided instead.
 			continue
 		}
+
+		if m.Dir == "" {
+			return nil, fmt.Errorf("missing directory for module %s@%s", m.ModuleReference.Path, m.ModuleReference.Version)
+		}
+
 		paths, err := locateLicenses(m.Dir)
 		if err != nil {
 			return nil, err
