@@ -8,8 +8,8 @@ import (
 	"strings"
 
 	"github.com/google/licenseclassifier"
-	"github.com/uw-labs/lichen/internal/license/db"
-	"github.com/uw-labs/lichen/internal/model"
+	"github.com/vearutop/lichen/internal/license/db"
+	"github.com/vearutop/lichen/internal/model"
 )
 
 // Resolve inspects each module and determines what it is licensed under. The returned slice contains each

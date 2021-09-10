@@ -1,4 +1,4 @@
-module github.com/uw-labs/lichen
+module github.com/vearutop/lichen
 
 go 1.15
 

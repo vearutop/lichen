@@ -5,8 +5,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/uw-labs/lichen/internal/model"
-	"github.com/uw-labs/lichen/internal/module"
+	"github.com/vearutop/lichen/internal/model"
+	"github.com/vearutop/lichen/internal/module"
 )
 
 func TestModuleFetchNoModules(test *testing.T) {

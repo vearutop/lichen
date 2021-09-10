@@ -5,8 +5,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uw-labs/lichen/internal/buildinfo"
-	"github.com/uw-labs/lichen/internal/model"
+	"github.com/vearutop/lichen/internal/buildinfo"
+	"github.com/vearutop/lichen/internal/model"
 )
 
 func TestParse(t *testing.T) {
@@ -19,15 +19,15 @@ func TestParse(t *testing.T) {
 		{
 			name: "basic single binary input",
 			input: `/tmp/lichen: go1.14.4
-	path	github.com/uw-labs/lichen
-	mod	github.com/uw-labs/lichen	(devel)	
+	path	github.com/vearutop/lichen
+	mod	github.com/vearutop/lichen	(devel)	
 	dep	github.com/cpuguy83/go-md2man/v2	v2.0.0-20190314233015-f79a8a8ca69d	h1:U+s90UTSYgptZMwQh2aRr3LuazLJIa+Pg3Kc1ylSYVY=
 `,
 			expected: []model.BuildInfo{
 				{
 					Path:        "/tmp/lichen",
-					PackagePath: "github.com/uw-labs/lichen",
-					ModulePath:  "github.com/uw-labs/lichen",
+					PackagePath: "github.com/vearutop/lichen",
+					ModulePath:  "github.com/vearutop/lichen",
 					ModuleRefs: []model.ModuleReference{
 						{
 							Path:    "github.com/cpuguy83/go-md2man/v2",
@@ -40,16 +40,16 @@ func TestParse(t *testing.T) {
 		{
 			name: "single binary input with dep replace",
 			input: `/tmp/lichen: go1.14
-	path	github.com/uw-labs/lichen
-	mod	github.com/uw-labs/lichen	(devel)	
+	path	github.com/vearutop/lichen
+	mod	github.com/vearutop/lichen	(devel)	
 	dep	github.com/cpuguy83/go-md2man/v2	v2.0.0-20190314233015-f79a8a8ca69d
 	=>	github.com/uw-labs/go-md2man/v2	v0.4.16-0.20200608113539-44d3cd590db7	h1:7JSMFy7v19QNuP77yBMWawhzb9xD82oPmrlda5yrBkE=
 `,
 			expected: []model.BuildInfo{
 				{
 					Path:        "/tmp/lichen",
-					PackagePath: "github.com/uw-labs/lichen",
-					ModulePath:  "github.com/uw-labs/lichen",
+					PackagePath: "github.com/vearutop/lichen",
+					ModulePath:  "github.com/vearutop/lichen",
 					ModuleRefs: []model.ModuleReference{
 						{
 							Path:    "github.com/uw-labs/go-md2man/v2",
@@ -62,19 +62,19 @@ func TestParse(t *testing.T) {
 		{
 			name: "basic multi binary input",
 			input: `/tmp/lichen: go1.14.4
-	path	github.com/uw-labs/lichen
-	mod	github.com/uw-labs/lichen	(devel)	
+	path	github.com/vearutop/lichen
+	mod	github.com/vearutop/lichen	(devel)	
 	dep	github.com/cpuguy83/go-md2man/v2	v2.0.0-20190314233015-f79a8a8ca69d	h1:U+s90UTSYgptZMwQh2aRr3LuazLJIa+Pg3Kc1ylSYVY=
 /tmp/lichen2: go1.14.4
-	path	github.com/uw-labs/lichen
-	mod	github.com/uw-labs/lichen	(devel)	
+	path	github.com/vearutop/lichen
+	mod	github.com/vearutop/lichen	(devel)	
 	dep	github.com/google/goterm	v0.0.0-20190703233501-fc88cf888a3f	h1:U+s90UTSYgptZMwQh2aRr3LuazLJIa+Pg3Kc1ylSYVY=
 `,
 			expected: []model.BuildInfo{
 				{
 					Path:        "/tmp/lichen",
-					PackagePath: "github.com/uw-labs/lichen",
-					ModulePath:  "github.com/uw-labs/lichen",
+					PackagePath: "github.com/vearutop/lichen",
+					ModulePath:  "github.com/vearutop/lichen",
 					ModuleRefs: []model.ModuleReference{
 						{
 							Path:    "github.com/cpuguy83/go-md2man/v2",
@@ -84,8 +84,8 @@ func TestParse(t *testing.T) {
 				},
 				{
 					Path:        "/tmp/lichen2",
-					PackagePath: "github.com/uw-labs/lichen",
-					ModulePath:  "github.com/uw-labs/lichen",
+					PackagePath: "github.com/vearutop/lichen",
+					ModulePath:  "github.com/vearutop/lichen",
 					ModuleRefs: []model.ModuleReference{
 						{
 							Path:    "github.com/google/goterm",
@@ -98,15 +98,15 @@ func TestParse(t *testing.T) {
 		{
 			name: "windows basic single binary input",
 			input: `C:\lichen.exe: go1.14.4
-	path	github.com/uw-labs/lichen
-	mod	github.com/uw-labs/lichen	(devel)	
+	path	github.com/vearutop/lichen
+	mod	github.com/vearutop/lichen	(devel)	
 	dep	github.com/cpuguy83/go-md2man/v2	v2.0.0-20190314233015-f79a8a8ca69d	h1:U+s90UTSYgptZMwQh2aRr3LuazLJIa+Pg3Kc1ylSYVY=
 `,
 			expected: []model.BuildInfo{
 				{
 					Path:        `C:\lichen.exe`,
-					PackagePath: "github.com/uw-labs/lichen",
-					ModulePath:  "github.com/uw-labs/lichen",
+					PackagePath: "github.com/vearutop/lichen",
+					ModulePath:  "github.com/vearutop/lichen",
 					ModuleRefs: []model.ModuleReference{
 						{
 							Path:    "github.com/cpuguy83/go-md2man/v2",

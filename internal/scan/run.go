@@ -4,9 +4,9 @@ import (
 	"context"
 	"sort"
 
-	"github.com/uw-labs/lichen/internal/license"
-	"github.com/uw-labs/lichen/internal/model"
-	"github.com/uw-labs/lichen/internal/module"
+	"github.com/vearutop/lichen/internal/license"
+	"github.com/vearutop/lichen/internal/model"
+	"github.com/vearutop/lichen/internal/module"
 )
 
 const defaultThreshold = 0.80
