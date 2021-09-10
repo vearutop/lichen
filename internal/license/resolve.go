@@ -36,6 +36,11 @@ func Resolve(modules []model.Module, threshold float64) ([]model.Module, error) 
 			// be provided instead.
 			continue
 		}
+
+		if m.Dir == "" {
+			return nil, fmt.Errorf("missing directory for module %s@%s", m.ModuleReference.Path, m.ModuleReference.Version)
+		}
+
 		paths, err := locateLicenses(m.Dir)
 		if err != nil {
 			return nil, err
