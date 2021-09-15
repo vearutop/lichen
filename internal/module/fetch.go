@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"log"
 	"os"
 	"os/exec"
 	"strings"
@@ -52,7 +53,7 @@ func Fetch(ctx context.Context, refs []model.ModuleReference) ([]model.Module, e
 		}
 	}
 
-	println("running command", args)
+	log.Println("running command", args)
 
 	cmd := exec.CommandContext(ctx, goBin, args...)
 	cmd.Dir = tempDir
@@ -95,7 +96,7 @@ func Fetch(ctx context.Context, refs []model.ModuleReference) ([]model.Module, e
 
 		args = append(args, missing...)
 
-		println("running command", args)
+		log.Println("running command", args)
 
 		cmd := exec.CommandContext(ctx, goBin, args...)
 		cmd.Dir = tempDir
@@ -134,14 +135,14 @@ func Fetch(ctx context.Context, refs []model.ModuleReference) ([]model.Module, e
 		}
 	}
 
-	println("verifying fetched")
+	log.Println("verifying fetched")
 
 	// sanity check: all modules should have been covered in the output from `go mod download`
 	if err := verifyFetched(modules, refs); err != nil {
 		return nil, fmt.Errorf("failed to fetch all modules: %w", err)
 	}
 
-	println("fetch complete")
+	log.Println("fetch complete")
 
 	return modules, nil
 }
