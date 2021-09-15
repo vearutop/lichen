@@ -52,8 +52,7 @@ func Fetch(ctx context.Context, refs []model.ModuleReference) ([]model.Module, e
 		}
 	}
 
-	println("running command")
-	println(args...)
+	println("running command", args)
 
 	cmd := exec.CommandContext(ctx, goBin, args...)
 	cmd.Dir = tempDir
@@ -96,8 +95,7 @@ func Fetch(ctx context.Context, refs []model.ModuleReference) ([]model.Module, e
 
 		args = append(args, missing...)
 
-		println("running command")
-		println(args...)
+		println("running command", args)
 
 		cmd := exec.CommandContext(ctx, goBin, args...)
 		cmd.Dir = tempDir
