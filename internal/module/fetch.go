@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"log"
 	"os"
 	"os/exec"
 	"strings"
@@ -27,13 +26,11 @@ func Fetch(ctx context.Context, refs []model.ModuleReference) ([]model.Module, e
 		err error
 	)
 
-	f.goBin, err = exec.LookPath("go")
-	if err != nil {
+	if f.goBin, err = exec.LookPath("go"); err != nil {
 		return nil, err
 	}
 
-	f.tempDir, err = ioutil.TempDir("", "lichen")
-	if err != nil {
+	if f.tempDir, err = ioutil.TempDir("", "lichen"); err != nil {
 		return nil, fmt.Errorf("failed to create temp directory: %w", err)
 	}
 	defer os.Remove(f.tempDir)
@@ -59,17 +56,6 @@ func Fetch(ctx context.Context, refs []model.ModuleReference) ([]model.Module, e
 		return nil, err
 	}
 
-	//// parse JSON output from `go mod download` for dependencies not fulfilled with `go mod list`
-	//if len(f.missing) > 0 && !f.vendorMode {
-	//	args = []string{"mod", "download", "-json"}
-	//
-	//	args = append(args, f.missing...)
-	//
-	//	if err = f.fetch(ctx, args); err != nil {
-	//		return nil, err
-	//	}
-	//}
-
 	// add local modules, as these won't be included in the set returned by `go mod download`
 	for _, ref := range refs {
 		if ref.IsLocal() {
@@ -79,14 +65,10 @@ func Fetch(ctx context.Context, refs []model.ModuleReference) ([]model.Module, e
 		}
 	}
 
-	log.Println("verifying fetched")
-
 	// sanity check: all modules should have been covered in the output from `go mod download`
 	if err := f.verifyFetched(refs); err != nil {
 		return nil, fmt.Errorf("failed to fetch all modules: %w", err)
 	}
-
-	log.Println("fetch complete")
 
 	return f.modules, nil
 }
@@ -97,12 +79,9 @@ type fetcher struct {
 	vendorMode bool
 
 	modules []model.Module
-	missing []string
 }
 
 func (f *fetcher) fetch(ctx context.Context, args []string) error {
-	log.Println("running command", args)
-
 	cmd := exec.CommandContext(ctx, f.goBin, args...)
 	cmd.Dir = f.tempDir
 	out, err := cmd.CombinedOutput()
@@ -110,7 +89,7 @@ func (f *fetcher) fetch(ctx context.Context, args []string) error {
 		return fmt.Errorf("failed to fetch: %w (output: %s)", err, string(out))
 	}
 
-	// parse JSON output from `go mod list`
+	// parse JSON output from `go mod list` or `go mod download`
 	dec := json.NewDecoder(bytes.NewReader(out))
 	for {
 		var m model.Module
@@ -128,8 +107,6 @@ func (f *fetcher) fetch(ctx context.Context, args []string) error {
 		}
 
 		if m.Dir == "" {
-			f.missing = append(f.missing, m.ModuleReference.String())
-
 			continue
 		}
 
