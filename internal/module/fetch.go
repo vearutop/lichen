@@ -44,11 +44,7 @@ func Fetch(ctx context.Context, refs []model.ModuleReference) ([]model.Module, e
 		f.vendorMode = true
 	}
 
-	args := []string{"list", "-m", "-json"}
-
-	if f.vendorMode {
-		args = append(args, "-mod=readonly")
-	}
+	args := []string{"list", "-m", "-json", "-mod=readonly"}
 
 	for _, ref := range refs {
 		if !ref.IsLocal() {
