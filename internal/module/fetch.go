@@ -21,29 +21,29 @@ func Fetch(ctx context.Context, refs []model.ModuleReference) ([]model.Module, e
 		return []model.Module{}, nil
 	}
 
-	goBin, err := exec.LookPath("go")
-	if err != nil {
+	var (
+		f   fetcher
+		err error
+	)
+
+	if f.goBin, err = exec.LookPath("go"); err != nil {
 		return nil, err
 	}
 
-	tempDir, err := ioutil.TempDir("", "lichen")
-	if err != nil {
+	if f.tempDir, err = ioutil.TempDir("", "lichen"); err != nil {
 		return nil, fmt.Errorf("failed to create temp directory: %w", err)
 	}
-	defer os.Remove(tempDir)
-
-	hasVendor := false
+	defer os.Remove(f.tempDir)
 
 	if strings.Contains(os.Getenv("GOFLAGS"), "-mod=vendor") {
-		hasVendor = true
-	} else if _, err := os.Stat("./vendor"); err == nil {
-		hasVendor = true
+		f.vendorMode = true
+	} else if _, err := os.Stat("./vendor/modules.txt"); err == nil {
+		f.vendorMode = true
 	}
 
-	args := []string{"list", "-m", "-json"}
-
-	if hasVendor {
-		args = append(args, "-mod=readonly")
+	args := []string{"mod", "download", "-json"}
+	if f.vendorMode {
+		args = []string{"list", "-m", "-json", "-mod=readonly"}
 	}
 
 	for _, ref := range refs {
@@ -52,17 +52,44 @@ func Fetch(ctx context.Context, refs []model.ModuleReference) ([]model.Module, e
 		}
 	}
 
-	cmd := exec.CommandContext(ctx, goBin, args...)
-	cmd.Dir = tempDir
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch: %w (output: %s)", err, string(out))
+	if err = f.fetch(ctx, args); err != nil {
+		return nil, err
 	}
 
-	var missing []string
+	// add local modules, as these won't be included in the set returned by `go mod download`
+	for _, ref := range refs {
+		if ref.IsLocal() {
+			f.modules = append(f.modules, model.Module{
+				ModuleReference: ref,
+			})
+		}
+	}
 
-	// parse JSON output from `go mod list`
-	modules := make([]model.Module, 0)
+	// sanity check: all modules should have been covered in the output from `go mod download`
+	if err := f.verifyFetched(refs); err != nil {
+		return nil, fmt.Errorf("failed to fetch all modules: %w", err)
+	}
+
+	return f.modules, nil
+}
+
+type fetcher struct {
+	goBin      string
+	tempDir    string
+	vendorMode bool
+
+	modules []model.Module
+}
+
+func (f *fetcher) fetch(ctx context.Context, args []string) error {
+	cmd := exec.CommandContext(ctx, f.goBin, args...)
+	cmd.Dir = f.tempDir
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("failed to fetch: %w (output: %s)", err, string(out))
+	}
+
+	// parse JSON output from `go mod list` or `go mod download`
 	dec := json.NewDecoder(bytes.NewReader(out))
 	for {
 		var m model.Module
@@ -70,77 +97,28 @@ func Fetch(ctx context.Context, refs []model.ModuleReference) ([]model.Module, e
 			if errors.Is(err, io.EOF) {
 				break
 			}
-			return nil, err
+			return err
 		}
 
-		if hasVendor {
+		if f.vendorMode {
 			if _, err := os.Stat("./vendor/" + m.Path); err == nil {
 				m.Dir = "./vendor/" + m.Path
 			}
 		}
 
 		if m.Dir == "" {
-			missing = append(missing, m.ModuleReference.String())
-
 			continue
 		}
 
-		modules = append(modules, m)
+		f.modules = append(f.modules, m)
 	}
 
-	if len(missing) > 0 {
-		args = []string{"mod", "download", "-json"}
-
-		args = append(args, missing...)
-
-		cmd := exec.CommandContext(ctx, goBin, args...)
-		cmd.Dir = tempDir
-		out, err := cmd.CombinedOutput()
-		if err != nil {
-			return nil, fmt.Errorf("failed to fetch: %w (output: %s)", err, string(out))
-		}
-
-		dec := json.NewDecoder(bytes.NewReader(out))
-		for {
-			var m model.Module
-			if err := dec.Decode(&m); err != nil {
-				if errors.Is(err, io.EOF) {
-					break
-				}
-				return nil, err
-			}
-
-			modules = append(modules, m)
-		}
-	}
-
-	// add local modules, as these won't be included in the set returned by `go mod download`
-	for _, ref := range refs {
-		if ref.IsLocal() {
-			modules = append(modules, model.Module{
-				ModuleReference: ref,
-			})
-		}
-
-		cmd := exec.CommandContext(ctx, goBin, args...)
-		cmd.Dir = tempDir
-		out, err := cmd.CombinedOutput()
-		if err != nil {
-			return nil, fmt.Errorf("failed to fetch: %w (output: %s)", err, string(out))
-		}
-	}
-
-	// sanity check: all modules should have been covered in the output from `go mod download`
-	if err := verifyFetched(modules, refs); err != nil {
-		return nil, fmt.Errorf("failed to fetch all modules: %w", err)
-	}
-
-	return modules, nil
+	return nil
 }
 
-func verifyFetched(fetched []model.Module, requested []model.ModuleReference) (err error) {
-	fetchedRefs := make(map[model.ModuleReference]struct{}, len(fetched))
-	for _, module := range fetched {
+func (f *fetcher) verifyFetched(requested []model.ModuleReference) (err error) {
+	fetchedRefs := make(map[model.ModuleReference]struct{}, len(f.modules))
+	for _, module := range f.modules {
 		fetchedRefs[module.ModuleReference] = struct{}{}
 	}
 	for _, ref := range requested {
