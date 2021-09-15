@@ -10,6 +10,7 @@ import (
 	"io/ioutil"
 	"os"
 	"os/exec"
+	"strings"
 
 	"github.com/hashicorp/go-multierror"
 	"github.com/vearutop/lichen/internal/model"
@@ -32,11 +33,19 @@ func Fetch(ctx context.Context, refs []model.ModuleReference) ([]model.Module, e
 	defer os.Remove(tempDir)
 
 	hasVendor := false
-	if _, err := os.Stat("./vendor"); err == nil {
+
+	if strings.Contains(os.Getenv("GOFLAGS"), "-mod=vendor") {
+		hasVendor = true
+	} else if _, err := os.Stat("./vendor"); err == nil {
 		hasVendor = true
 	}
 
-	args := []string{"list", "-m", "-mod=readonly", "-json"}
+	args := []string{"list", "-m", "-json"}
+
+	if hasVendor {
+		args = append(args, "-mod=readonly")
+	}
+
 	for _, ref := range refs {
 		if !ref.IsLocal() {
 			args = append(args, ref.String())
