@@ -44,7 +44,10 @@ func Fetch(ctx context.Context, refs []model.ModuleReference) ([]model.Module, e
 		f.vendorMode = true
 	}
 
-	args := []string{"list", "-m", "-json", "-mod=readonly"}
+	args := []string{"mod", "download", "-json"}
+	if f.vendorMode {
+		args = []string{"list", "-m", "-json", "-mod=readonly"}
+	}
 
 	for _, ref := range refs {
 		if !ref.IsLocal() {
@@ -56,16 +59,16 @@ func Fetch(ctx context.Context, refs []model.ModuleReference) ([]model.Module, e
 		return nil, err
 	}
 
-	// parse JSON output from `go mod download` for dependencies not fulfilled with `go mod list`
-	if len(f.missing) > 0 && !f.vendorMode {
-		args = []string{"mod", "download", "-json"}
-
-		args = append(args, f.missing...)
-
-		if err = f.fetch(ctx, args); err != nil {
-			return nil, err
-		}
-	}
+	//// parse JSON output from `go mod download` for dependencies not fulfilled with `go mod list`
+	//if len(f.missing) > 0 && !f.vendorMode {
+	//	args = []string{"mod", "download", "-json"}
+	//
+	//	args = append(args, f.missing...)
+	//
+	//	if err = f.fetch(ctx, args); err != nil {
+	//		return nil, err
+	//	}
+	//}
 
 	// add local modules, as these won't be included in the set returned by `go mod download`
 	for _, ref := range refs {
