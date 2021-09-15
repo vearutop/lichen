@@ -59,7 +59,9 @@ func Fetch(ctx context.Context, refs []model.ModuleReference) ([]model.Module, e
 		return nil, fmt.Errorf("failed to fetch: %w (output: %s)", err, string(out))
 	}
 
-	// parse JSON output from `go mod download`
+	var missing []string
+
+	// parse JSON output from `go mod list`
 	modules := make([]model.Module, 0)
 	dec := json.NewDecoder(bytes.NewReader(out))
 	for {
@@ -77,7 +79,39 @@ func Fetch(ctx context.Context, refs []model.ModuleReference) ([]model.Module, e
 			}
 		}
 
+		if m.Dir == "" {
+			missing = append(missing, m.ModuleReference.String())
+
+			continue
+		}
+
 		modules = append(modules, m)
+	}
+
+	if len(missing) > 0 {
+		args = []string{"mod", "download", "-json"}
+
+		args = append(args, missing...)
+
+		cmd := exec.CommandContext(ctx, goBin, args...)
+		cmd.Dir = tempDir
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			return nil, fmt.Errorf("failed to fetch: %w (output: %s)", err, string(out))
+		}
+
+		dec := json.NewDecoder(bytes.NewReader(out))
+		for {
+			var m model.Module
+			if err := dec.Decode(&m); err != nil {
+				if errors.Is(err, io.EOF) {
+					break
+				}
+				return nil, err
+			}
+
+			modules = append(modules, m)
+		}
 	}
 
 	// add local modules, as these won't be included in the set returned by `go mod download`
@@ -86,6 +120,13 @@ func Fetch(ctx context.Context, refs []model.ModuleReference) ([]model.Module, e
 			modules = append(modules, model.Module{
 				ModuleReference: ref,
 			})
+		}
+
+		cmd := exec.CommandContext(ctx, goBin, args...)
+		cmd.Dir = tempDir
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			return nil, fmt.Errorf("failed to fetch: %w (output: %s)", err, string(out))
 		}
 	}
 
