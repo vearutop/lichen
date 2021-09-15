@@ -22,28 +22,31 @@ func Fetch(ctx context.Context, refs []model.ModuleReference) ([]model.Module, e
 		return []model.Module{}, nil
 	}
 
-	goBin, err := exec.LookPath("go")
+	var (
+		f   fetcher
+		err error
+	)
+
+	f.goBin, err = exec.LookPath("go")
 	if err != nil {
 		return nil, err
 	}
 
-	tempDir, err := ioutil.TempDir("", "lichen")
+	f.tempDir, err = ioutil.TempDir("", "lichen")
 	if err != nil {
 		return nil, fmt.Errorf("failed to create temp directory: %w", err)
 	}
-	defer os.Remove(tempDir)
-
-	hasVendor := false
+	defer os.Remove(f.tempDir)
 
 	if strings.Contains(os.Getenv("GOFLAGS"), "-mod=vendor") {
-		hasVendor = true
-	} else if _, err := os.Stat("./vendor"); err == nil {
-		hasVendor = true
+		f.vendorMode = true
+	} else if _, err := os.Stat("./vendor/modules.txt"); err == nil {
+		f.vendorMode = true
 	}
 
 	args := []string{"list", "-m", "-json"}
 
-	if hasVendor {
+	if f.vendorMode {
 		args = append(args, "-mod=readonly")
 	}
 
@@ -53,19 +56,62 @@ func Fetch(ctx context.Context, refs []model.ModuleReference) ([]model.Module, e
 		}
 	}
 
-	log.Println("running command", args)
-
-	cmd := exec.CommandContext(ctx, goBin, args...)
-	cmd.Dir = tempDir
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch: %w (output: %s)", err, string(out))
+	if err = f.fetch(ctx, args); err != nil {
+		return nil, err
 	}
 
-	var missing []string
+	// parse JSON output from `go mod download` for dependencies not fulfilled with `go mod list`
+	if len(f.missing) > 0 && !f.vendorMode {
+		args = []string{"mod", "download", "-json"}
+
+		args = append(args, f.missing...)
+
+		if err = f.fetch(ctx, args); err != nil {
+			return nil, err
+		}
+	}
+
+	// add local modules, as these won't be included in the set returned by `go mod download`
+	for _, ref := range refs {
+		if ref.IsLocal() {
+			f.modules = append(f.modules, model.Module{
+				ModuleReference: ref,
+			})
+		}
+	}
+
+	log.Println("verifying fetched")
+
+	// sanity check: all modules should have been covered in the output from `go mod download`
+	if err := f.verifyFetched(refs); err != nil {
+		return nil, fmt.Errorf("failed to fetch all modules: %w", err)
+	}
+
+	log.Println("fetch complete")
+
+	return f.modules, nil
+}
+
+type fetcher struct {
+	goBin      string
+	tempDir    string
+	vendorMode bool
+
+	modules []model.Module
+	missing []string
+}
+
+func (f *fetcher) fetch(ctx context.Context, args []string) error {
+	log.Println("running command", args)
+
+	cmd := exec.CommandContext(ctx, f.goBin, args...)
+	cmd.Dir = f.tempDir
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("failed to fetch: %w (output: %s)", err, string(out))
+	}
 
 	// parse JSON output from `go mod list`
-	modules := make([]model.Module, 0)
 	dec := json.NewDecoder(bytes.NewReader(out))
 	for {
 		var m model.Module
@@ -73,83 +119,30 @@ func Fetch(ctx context.Context, refs []model.ModuleReference) ([]model.Module, e
 			if errors.Is(err, io.EOF) {
 				break
 			}
-			return nil, err
+			return err
 		}
 
-		if hasVendor {
+		if f.vendorMode {
 			if _, err := os.Stat("./vendor/" + m.Path); err == nil {
 				m.Dir = "./vendor/" + m.Path
 			}
 		}
 
 		if m.Dir == "" {
-			missing = append(missing, m.ModuleReference.String())
+			f.missing = append(f.missing, m.ModuleReference.String())
 
 			continue
 		}
 
-		modules = append(modules, m)
+		f.modules = append(f.modules, m)
 	}
 
-	if len(missing) > 0 {
-		args = []string{"mod", "download", "-json"}
-
-		args = append(args, missing...)
-
-		log.Println("running command", args)
-
-		cmd := exec.CommandContext(ctx, goBin, args...)
-		cmd.Dir = tempDir
-		out, err := cmd.CombinedOutput()
-		if err != nil {
-			return nil, fmt.Errorf("failed to fetch: %w (output: %s)", err, string(out))
-		}
-
-		dec := json.NewDecoder(bytes.NewReader(out))
-		for {
-			var m model.Module
-			if err := dec.Decode(&m); err != nil {
-				if errors.Is(err, io.EOF) {
-					break
-				}
-				return nil, err
-			}
-
-			modules = append(modules, m)
-		}
-	}
-
-	// add local modules, as these won't be included in the set returned by `go mod download`
-	for _, ref := range refs {
-		if ref.IsLocal() {
-			modules = append(modules, model.Module{
-				ModuleReference: ref,
-			})
-		}
-
-		cmd := exec.CommandContext(ctx, goBin, args...)
-		cmd.Dir = tempDir
-		out, err := cmd.CombinedOutput()
-		if err != nil {
-			return nil, fmt.Errorf("failed to fetch: %w (output: %s)", err, string(out))
-		}
-	}
-
-	log.Println("verifying fetched")
-
-	// sanity check: all modules should have been covered in the output from `go mod download`
-	if err := verifyFetched(modules, refs); err != nil {
-		return nil, fmt.Errorf("failed to fetch all modules: %w", err)
-	}
-
-	log.Println("fetch complete")
-
-	return modules, nil
+	return nil
 }
 
-func verifyFetched(fetched []model.Module, requested []model.ModuleReference) (err error) {
-	fetchedRefs := make(map[model.ModuleReference]struct{}, len(fetched))
-	for _, module := range fetched {
+func (f *fetcher) verifyFetched(requested []model.ModuleReference) (err error) {
+	fetchedRefs := make(map[model.ModuleReference]struct{}, len(f.modules))
+	for _, module := range f.modules {
 		fetchedRefs[module.ModuleReference] = struct{}{}
 	}
 	for _, ref := range requested {
